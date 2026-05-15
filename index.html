@@ -312,8 +312,10 @@
                     
                     function updateTilesetOpacity(opacityPercent) {
                         const opacityDecimal = opacityPercent / 100;
+                        // 修正: 確保在 opacity 為 0 的時候完全透明，其他時候正常變化。
+                        // 原本的寫法在某些顯示卡或底圖設定下可能被當作 cut-off 值。
                         tileset.style = new Cesium.Cesium3DTileStyle({
-                            color: 'color("white", ' + opacityDecimal + ')'
+                            color: "color('white', " + opacityDecimal + ")"
                         });
                     }
 
