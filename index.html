@@ -361,32 +361,46 @@
             // 滑鼠點擊事件監聽 (擷取座標)
             const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
             handler.setInputAction(function(clickEvent) {
-                if (!isPicking) return;
-
-                // 獲取 3D 空間座標 (包含地形與建築)
-                const cartesian = viewer.scene.pickPosition(clickEvent.position);
-                
-                if (Cesium.defined(cartesian)) {
-                    // 轉為經緯度
-                    const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-                    currentX = Cesium.Math.toDegrees(cartographic.longitude).toFixed(5);
-                    currentY = Cesium.Math.toDegrees(cartographic.latitude).toFixed(5);
+                if (isPicking) {
+                    const cartesian = viewer.scene.pickPosition(clickEvent.position);
                     
-                    // 更新 UI 顯示
-                    displayX.textContent = currentX;
-                    displayY.textContent = currentY;
+                    if (Cesium.defined(cartesian)) {
+                        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                        currentX = Cesium.Math.toDegrees(cartographic.longitude).toFixed(5);
+                        currentY = Cesium.Math.toDegrees(cartographic.latitude).toFixed(5);
+                        
+                        displayX.textContent = currentX;
+                        displayY.textContent = currentY;
 
-                    // 取消選取模式
-                    isPicking = false;
-                    btnPickPoint.classList.remove('active');
-                    btnPickPoint.textContent = '按鈕1: 選取平面座標';
-                    viewer.canvas.style.cursor = 'default';
+                        isPicking = false;
+                        btnPickPoint.classList.remove('active');
+                        btnPickPoint.textContent = '按鈕1: 選取平面座標';
+                        viewer.canvas.style.cursor = 'default';
+                    } else {
+                        showToast('請點擊地球表面或建築物！');
+                    }
                 } else {
-                    showToast('請點擊地球表面或建築物！');
+                    // 非座標選取模式下，使用 drillPick (穿透選取) 來尋找可能被模型遮擋的點位
+                    const pickedObjects = viewer.scene.drillPick(clickEvent.position);
+                    if (pickedObjects.length > 0) {
+                        for (let i = 0; i < pickedObjects.length; i++) {
+                            const picked = pickedObjects[i];
+                            // 檢查是否選取到了我們建立的 Entity
+                            if (Cesium.defined(picked) && Cesium.defined(picked.id)) {
+                                const entityId = picked.id.id; // 取得實體的 ID
+                                const targetPoint = pointsArray.find(p => p.id === entityId);
+                                
+                                if (targetPoint) {
+                                    // 找到自訂點位，顯示資訊並中斷迴圈
+                                    showToast(`📌 點選資訊 - X: ${targetPoint.x}, Y: ${targetPoint.y}, Z: ${targetPoint.z}m`);
+                                    break; 
+                                }
+                            }
+                        }
+                    }
                 }
             }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-            // 產生點座標並加入表單
             btnAddPoint.addEventListener('click', () => {
                 if (currentX === null || currentY === null) {
                     showToast('請先使用按鈕1選取平面座標！');
