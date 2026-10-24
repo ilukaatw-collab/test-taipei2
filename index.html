@@ -294,10 +294,12 @@
                 animation: false,
                 timeline: false,
                 fullscreenButton: false,
-                baseLayer: false
+                baseLayer: false,
+                // 【修正 1】加入全球高程地形支援，使地表有高低起伏，模型才能正確貼合
+                terrain: Cesium.Terrain.fromWorldTerrain()
             });
 
-            // 確保選取功能能與 3D 建築物交互作用
+            // 確保選取功能能與 3D 建築物互動
             viewer.scene.globe.depthTestAgainstTerrain = true;
 
             const imageryProvider = new Cesium.ArcGisMapServerImageryProvider({
@@ -310,10 +312,21 @@
                 .then(function(tileset) {
                     viewer.scene.primitives.add(tileset);
                     
+                    // 【修正 2】等 3D Tiles 載入完成後，進行地表對齊與高度微調
+                    tileset.readyPromise.then(function(tileset) {
+                        const boundingSphere = tileset.boundingSphere;
+                        const cartographic = Cesium.Cartographic.fromCartesian(boundingSphere.center);
+                        const surface = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, 0.0);
+                        const offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, cartographic.height);
+                        
+                        const translation = Cesium.Cartesian3.subtract(surface, offset, new Cesium.Cartesian3());
+                        tileset.modelMatrix = Cesium.Matrix4.fromTranslation(translation);
+                    }).catch(function(err) {
+                        console.error('Tileset readyPromise error:', err);
+                    });
+                    
                     function updateTilesetOpacity(opacityPercent) {
                         const opacityDecimal = opacityPercent / 100;
-                        // 修正: 確保在 opacity 為 0 的時候完全透明，其他時候正常變化。
-                        // 原本的寫法在某些顯示卡或底圖設定下可能被當作 cut-off 值。
                         tileset.style = new Cesium.Cesium3DTileStyle({
                             color: "color('white', " + opacityDecimal + ")"
                         });
@@ -362,7 +375,13 @@
             const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
             handler.setInputAction(function(clickEvent) {
                 if (isPicking) {
-                    const cartesian = viewer.scene.pickPosition(clickEvent.position);
+                    // 【修正 3】優先使用 pickPosition，若未點中建築/地形則改用 globe.pick 抓取地表
+                    let cartesian = viewer.scene.pickPosition(clickEvent.position);
+                    
+                    if (!Cesium.defined(cartesian)) {
+                        const ray = viewer.camera.getPickRay(clickEvent.position);
+                        cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+                    }
                     
                     if (Cesium.defined(cartesian)) {
                         const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
@@ -380,18 +399,15 @@
                         showToast('請點擊地球表面或建築物！');
                     }
                 } else {
-                    // 非座標選取模式下，使用 drillPick (穿透選取) 來尋找可能被模型遮擋的點位
                     const pickedObjects = viewer.scene.drillPick(clickEvent.position);
                     if (pickedObjects.length > 0) {
                         for (let i = 0; i < pickedObjects.length; i++) {
                             const picked = pickedObjects[i];
-                            // 檢查是否選取到了我們建立的 Entity
                             if (Cesium.defined(picked) && Cesium.defined(picked.id)) {
-                                const entityId = picked.id.id; // 取得實體的 ID
+                                const entityId = picked.id.id;
                                 const targetPoint = pointsArray.find(p => p.id === entityId);
                                 
                                 if (targetPoint) {
-                                    // 找到自訂點位，顯示資訊並中斷迴圈
                                     showToast(`📌 點選資訊 - X: ${targetPoint.x}, Y: ${targetPoint.y}, Z: ${targetPoint.z}m`);
                                     break; 
                                 }
@@ -412,26 +428,23 @@
                 const yValue = parseFloat(currentY);
                 const pointId = 'point_' + Date.now();
 
-                // 在 Cesium 產生實體 (直徑 1.5 公尺的球體 -> 半徑 0.75m)
                 viewer.entities.add({
                     id: pointId,
                     position: Cesium.Cartesian3.fromDegrees(xValue, yValue, zValue),
                     ellipsoid: {
-                        radii: new Cesium.Cartesian3(0.75, 0.75, 0.75), // 直徑 1.5 公尺
-                        material: Cesium.Color.fromCssColorString('#facc15'), // 黃色比較顯眼
+                        radii: new Cesium.Cartesian3(0.75, 0.75, 0.75),
+                        material: Cesium.Color.fromCssColorString('#facc15'),
                         outline: true,
                         outlineColor: Cesium.Color.BLACK
                     }
                 });
 
-                // 將資料加入陣列並重繪表單
                 pointsArray.push({ id: pointId, x: currentX, y: currentY, z: zValue });
                 renderPointsTable();
                 
                 showToast('點位建置成功！');
             });
 
-            // 繪製/重繪點位表單
             function renderPointsTable() {
                 pointsTableBody.innerHTML = '';
                 if(pointsArray.length === 0) {
@@ -451,20 +464,14 @@
                 });
             }
 
-            // 全域刪除函數 (給 HTML onClick 呼叫)
             window.deletePoint = function(id) {
-                // 從圖台移除
                 viewer.entities.removeById(id);
-                // 從陣列移除
                 pointsArray = pointsArray.filter(p => p.id !== id);
-                // 更新 UI
                 renderPointsTable();
             };
 
-            // 初始空表單畫面
             renderPointsTable();
 
-            // 移除 Loading 畫面
             const overlay = document.getElementById('loadingOverlay');
             overlay.style.opacity = '0';
             setTimeout(() => {
