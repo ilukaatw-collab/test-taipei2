@@ -194,10 +194,8 @@
     <div id="toastBox">系統訊息</div>
     
     <div id="controlPanel">
-        <!-- 標題改為功能區 -->
         <div class="panel-title">功能區</div>
         
-        <!-- 區塊一：底圖與模型設定 -->
         <div class="section-title">顯示設定</div>
         <div class="control-group">
             <div class="flex-between">
@@ -207,7 +205,6 @@
             <input type="range" id="opacitySlider" min="0" max="100" value="40">
         </div>
 
-        <!-- 區塊二：座標擷取與建立點位 -->
         <div class="section-title">點位建置作業</div>
         <div class="control-group">
             <button id="btnPickPoint">按鈕1: 選取平面座標</button>
@@ -220,13 +217,10 @@
                 <span style="font-size:0.9rem; color:#cbd5e1;">Z 值高度設定 (公尺)</span>
                 <span class="value-display" id="displayZ">0</span>
             </div>
-            <!-- Z 軸高度滑桿: 0 ~ 600m -->
             <input type="range" id="zSlider" min="-50" max="600" value="0">
-
             <button id="btnAddPoint" class="btn-add">按鈕2: 產生 3D 點座標</button>
         </div>
 
-        <!-- 區塊三：已建置點位清單 -->
         <div class="section-title">已產生點位表單</div>
         <table>
             <thead>
@@ -238,7 +232,6 @@
                 </tr>
             </thead>
             <tbody id="pointsTableBody">
-                <!-- 點位資料會插入這裡 -->
             </tbody>
         </table>
     </div>
@@ -251,7 +244,6 @@
         script.onload = initCesiumApp;
         document.head.appendChild(script);
 
-        // UI 元素綁定
         const opacitySlider = document.getElementById('opacitySlider');
         const opacityValueDisplay = document.getElementById('opacityValue');
         const btnPickPoint = document.getElementById('btnPickPoint');
@@ -263,13 +255,11 @@
         const pointsTableBody = document.getElementById('pointsTableBody');
         const toastBox = document.getElementById('toastBox');
 
-        // 狀態變數
         let isPicking = false;
         let currentX = null;
         let currentY = null;
         let pointsArray = [];
 
-        // 提示框功能 (取代 alert)
         function showToast(message) {
             toastBox.textContent = message;
             toastBox.classList.add('show');
@@ -294,14 +284,13 @@
                 animation: false,
                 timeline: false,
                 fullscreenButton: false,
-                baseLayer: false,
-                // 【修正 1】加入全球高程地形支援，使地表有高低起伏，模型才能正確貼合
-                terrain: Cesium.Terrain.fromWorldTerrain()
+                baseLayer: false
+                // 移除會導致黑畫面的 terrain 設定
             });
 
-            // 確保選取功能能與 3D 建築物互動
             viewer.scene.globe.depthTestAgainstTerrain = true;
 
+            // ArcGIS 衛星底圖
             const imageryProvider = new Cesium.ArcGisMapServerImageryProvider({
                 url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
                 enablePickFeatures: false
@@ -312,14 +301,17 @@
                 .then(function(tileset) {
                     viewer.scene.primitives.add(tileset);
                     
-                    // 【修正 2】等 3D Tiles 載入完成後，進行地表對齊與高度微調
+                    // 核心修正：將 3D 模型往下平移，抵消原本的懸空高度，貼合無地形的底圖
                     tileset.readyPromise.then(function(tileset) {
                         const boundingSphere = tileset.boundingSphere;
                         const cartographic = Cesium.Cartographic.fromCartesian(boundingSphere.center);
+                        
+                        // 計算模型中心原點到底圖表面(高度0)的落差
                         const surface = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, 0.0);
                         const offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, cartographic.height);
-                        
                         const translation = Cesium.Cartesian3.subtract(surface, offset, new Cesium.Cartesian3());
+                        
+                        // 套用下壓矩陣
                         tileset.modelMatrix = Cesium.Matrix4.fromTranslation(translation);
                     }).catch(function(err) {
                         console.error('Tileset readyPromise error:', err);
@@ -352,12 +344,10 @@
                 }
             });
 
-            // 高度滑桿監聽
             zSlider.addEventListener('input', function(e) {
                 displayZ.textContent = e.target.value;
             });
 
-            // 選取座標模式切換
             btnPickPoint.addEventListener('click', () => {
                 isPicking = !isPicking;
                 if (isPicking) {
@@ -371,11 +361,9 @@
                 }
             });
 
-            // 滑鼠點擊事件監聽 (擷取座標)
             const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
             handler.setInputAction(function(clickEvent) {
                 if (isPicking) {
-                    // 【修正 3】優先使用 pickPosition，若未點中建築/地形則改用 globe.pick 抓取地表
                     let cartesian = viewer.scene.pickPosition(clickEvent.position);
                     
                     if (!Cesium.defined(cartesian)) {
