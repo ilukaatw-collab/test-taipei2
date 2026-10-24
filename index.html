@@ -68,7 +68,6 @@
             overflow-y: auto;
             box-sizing: border-box;
         }
-        /* 自訂捲軸 */
         #controlPanel::-webkit-scrollbar { width: 6px; }
         #controlPanel::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
         #controlPanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
@@ -125,7 +124,7 @@
             font-size: 0.9rem;
         }
         button:hover { background: #2563eb; }
-        button.active { background: #ef4444; } /* 啟用選取模式時變紅色 */
+        button.active { background: #ef4444; } 
         button.active:hover { background: #dc2626; }
         button.btn-add { background: #10b981; margin-top: 10px; }
         button.btn-add:hover { background: #059669; }
@@ -141,7 +140,6 @@
             color: #cbd5e1;
         }
 
-        /* 資料表單 */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -155,7 +153,6 @@
         }
         th { color: #94a3b8; font-weight: normal; }
 
-        /* 自訂訊息框 (Toast) */
         #toastBox {
             position: fixed;
             bottom: 30px;
@@ -190,7 +187,6 @@
         <div>載入 3D 引擎與衛星圖資中，請稍候...</div>
     </div>
     
-    <!-- 自訂訊息框 (替代 alert) -->
     <div id="toastBox">系統訊息</div>
     
     <div id="controlPanel">
@@ -203,6 +199,13 @@
                 <span class="value-display" id="opacityValue">40%</span>
             </div>
             <input type="range" id="opacitySlider" min="0" max="100" value="40">
+            
+            <!-- 新增：模型高度微調滑桿 -->
+            <div class="flex-between" style="margin-top: 10px;">
+                <span style="font-size:0.9rem; color:#cbd5e1;">建物高度微調 (m)</span>
+                <span class="value-display" id="modelZDisplay">0</span>
+            </div>
+            <input type="range" id="modelZSlider" min="-100" max="100" value="0">
         </div>
 
         <div class="section-title">點位建置作業</div>
@@ -246,6 +249,11 @@
 
         const opacitySlider = document.getElementById('opacitySlider');
         const opacityValueDisplay = document.getElementById('opacityValue');
+        
+        // 新增的滑桿綁定
+        const modelZSlider = document.getElementById('modelZSlider');
+        const modelZDisplay = document.getElementById('modelZDisplay');
+        
         const btnPickPoint = document.getElementById('btnPickPoint');
         const displayX = document.getElementById('displayX');
         const displayY = document.getElementById('displayY');
@@ -285,12 +293,10 @@
                 timeline: false,
                 fullscreenButton: false,
                 baseLayer: false
-                // 移除會導致黑畫面的 terrain 設定
             });
 
             viewer.scene.globe.depthTestAgainstTerrain = true;
 
-            // ArcGIS 衛星底圖
             const imageryProvider = new Cesium.ArcGisMapServerImageryProvider({
                 url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
                 enablePickFeatures: false
@@ -301,22 +307,23 @@
                 .then(function(tileset) {
                     viewer.scene.primitives.add(tileset);
                     
-                    // 核心修正：將 3D 模型往下平移，抵消原本的懸空高度，貼合無地形的底圖
-                    tileset.readyPromise.then(function(tileset) {
+                    // 用於動態調整模型高度的函數
+                    function applyModelHeightOffset(offsetValue) {
                         const boundingSphere = tileset.boundingSphere;
                         const cartographic = Cesium.Cartographic.fromCartesian(boundingSphere.center);
-                        
-                        // 計算模型中心原點到底圖表面(高度0)的落差
                         const surface = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, 0.0);
-                        const offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, cartographic.height);
-                        const translation = Cesium.Cartesian3.subtract(surface, offset, new Cesium.Cartesian3());
-                        
-                        // 套用下壓矩陣
+                        const offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, offsetValue);
+                        const translation = Cesium.Cartesian3.subtract(offset, surface, new Cesium.Cartesian3());
                         tileset.modelMatrix = Cesium.Matrix4.fromTranslation(translation);
-                    }).catch(function(err) {
-                        console.error('Tileset readyPromise error:', err);
+                    }
+
+                    // 綁定高度微調滑桿事件
+                    modelZSlider.addEventListener('input', function(e) {
+                        const offsetValue = parseFloat(e.target.value);
+                        modelZDisplay.textContent = offsetValue;
+                        applyModelHeightOffset(offsetValue);
                     });
-                    
+
                     function updateTilesetOpacity(opacityPercent) {
                         const opacityDecimal = opacityPercent / 100;
                         tileset.style = new Cesium.Cesium3DTileStyle({
