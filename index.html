@@ -199,13 +199,6 @@
                 <span class="value-display" id="opacityValue">40%</span>
             </div>
             <input type="range" id="opacitySlider" min="0" max="100" value="40">
-            
-            <!-- 新增：模型高度微調滑桿 -->
-            <div class="flex-between" style="margin-top: 10px;">
-                <span style="font-size:0.9rem; color:#cbd5e1;">建物高度微調 (m)</span>
-                <span class="value-display" id="modelZDisplay">0</span>
-            </div>
-            <input type="range" id="modelZSlider" min="-100" max="100" value="0">
         </div>
 
         <div class="section-title">點位建置作業</div>
@@ -250,10 +243,6 @@
         const opacitySlider = document.getElementById('opacitySlider');
         const opacityValueDisplay = document.getElementById('opacityValue');
         
-        // 新增的滑桿綁定
-        const modelZSlider = document.getElementById('modelZSlider');
-        const modelZDisplay = document.getElementById('modelZDisplay');
-        
         const btnPickPoint = document.getElementById('btnPickPoint');
         const displayX = document.getElementById('displayX');
         const displayY = document.getElementById('displayY');
@@ -281,7 +270,8 @@
             const taipeiLatitude = 25.0330;
             const viewHeight = 1500.0;
 
-            Cesium.Ion.defaultAccessToken = '';
+            // 必須填入免費註冊的 Cesium Ion Token，才能使用全球高程地形
+            Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6InVmWlRUZWJKZEIzc0VibUYiLCJqdGkiOiI4ZThmMzVhMi1hNGNlLTQ4NGEtODU1NC02ODg0MjRmZTczZTQiLCJpZCI6MTQ3NDQyLCJzdWIiOiJpbHVrYWEiLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidGVzdGNlc2l1bSIsImlhdCI6MTc5Mjg1MjE1MH0.AhSN6dizcHH7jKHXbJ6vTdHDg3FqWPj8p7Qz86moNsw';
 
             const viewer = new Cesium.Viewer('cesiumContainer', {
                 baseLayerPicker: false,
@@ -292,7 +282,9 @@
                 animation: false,
                 timeline: false,
                 fullscreenButton: false,
-                baseLayer: false
+                baseLayer: false,
+                // 加入官方的全球高程地形介接服務
+                terrain: Cesium.Terrain.fromWorldTerrain()
             });
 
             viewer.scene.globe.depthTestAgainstTerrain = true;
@@ -307,23 +299,6 @@
                 .then(function(tileset) {
                     viewer.scene.primitives.add(tileset);
                     
-                    // 用於動態調整模型高度的函數
-                    function applyModelHeightOffset(offsetValue) {
-                        const boundingSphere = tileset.boundingSphere;
-                        const cartographic = Cesium.Cartographic.fromCartesian(boundingSphere.center);
-                        const surface = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, 0.0);
-                        const offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, offsetValue);
-                        const translation = Cesium.Cartesian3.subtract(offset, surface, new Cesium.Cartesian3());
-                        tileset.modelMatrix = Cesium.Matrix4.fromTranslation(translation);
-                    }
-
-                    // 綁定高度微調滑桿事件
-                    modelZSlider.addEventListener('input', function(e) {
-                        const offsetValue = parseFloat(e.target.value);
-                        modelZDisplay.textContent = offsetValue;
-                        applyModelHeightOffset(offsetValue);
-                    });
-
                     function updateTilesetOpacity(opacityPercent) {
                         const opacityDecimal = opacityPercent / 100;
                         tileset.style = new Cesium.Cesium3DTileStyle({
