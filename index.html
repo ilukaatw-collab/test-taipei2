@@ -286,6 +286,7 @@
             Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6InVmWlRUZWJKZEIzc0VibUYiLCJqdGkiOiI4ZThmMzVhMi1hNGNlLTQ4NGEtODU1NC02ODg0MjRmZTczZTQiLCJpZCI6MTQ3NDQyLCJzdWIiOiJpbHVrYWEiLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidGVzdGNlc2l1bSIsImlhdCI6MTc5Mjg1MjE1MH0.AhSN6dizcHH7jKHXbJ6vTdHDg3FqWPj8p7Qz86moNsw';
 
             const viewer = new Cesium.Viewer('cesiumContainer', {
+               terrain: Cesium.Terrain.fromWorldTerrain(), // 新增這行以載入 Cesium 全球地形
                 baseLayerPicker: false,
                 geocoder: false,
                 homeButton: false,
