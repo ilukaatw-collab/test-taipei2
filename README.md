@@ -1,2 +1,2 @@
 # test-taipei2
-cesium - Deployed by EZPage
+cesium  - 使用nlsc 3dtiles服務
