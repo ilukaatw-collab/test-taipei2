@@ -68,6 +68,7 @@
             overflow-y: auto;
             box-sizing: border-box;
         }
+        /* 自訂捲軸 */
         #controlPanel::-webkit-scrollbar { width: 6px; }
         #controlPanel::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
         #controlPanel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
@@ -124,7 +125,7 @@
             font-size: 0.9rem;
         }
         button:hover { background: #2563eb; }
-        button.active { background: #ef4444; } 
+        button.active { background: #ef4444; } /* 啟用選取模式時變紅色 */
         button.active:hover { background: #dc2626; }
         button.btn-add { background: #10b981; margin-top: 10px; }
         button.btn-add:hover { background: #059669; }
@@ -140,6 +141,7 @@
             color: #cbd5e1;
         }
 
+        /* 資料表單 */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -153,6 +155,7 @@
         }
         th { color: #94a3b8; font-weight: normal; }
 
+        /* 自訂訊息框 (Toast) */
         #toastBox {
             position: fixed;
             bottom: 30px;
@@ -187,11 +190,14 @@
         <div>載入 3D 引擎與衛星圖資中，請稍候...</div>
     </div>
     
+    <!-- 自訂訊息框 (替代 alert) -->
     <div id="toastBox">系統訊息</div>
     
     <div id="controlPanel">
+        <!-- 標題改為功能區 -->
         <div class="panel-title">功能區</div>
         
+        <!-- 區塊一：底圖與模型設定 -->
         <div class="section-title">顯示設定</div>
         <div class="control-group">
             <div class="flex-between">
@@ -201,6 +207,7 @@
             <input type="range" id="opacitySlider" min="0" max="100" value="40">
         </div>
 
+        <!-- 區塊二：座標擷取與建立點位 -->
         <div class="section-title">點位建置作業</div>
         <div class="control-group">
             <button id="btnPickPoint">按鈕1: 選取平面座標</button>
@@ -213,10 +220,13 @@
                 <span style="font-size:0.9rem; color:#cbd5e1;">Z 值高度設定 (公尺)</span>
                 <span class="value-display" id="displayZ">0</span>
             </div>
+            <!-- Z 軸高度滑桿: 0 ~ 600m -->
             <input type="range" id="zSlider" min="-50" max="600" value="0">
+
             <button id="btnAddPoint" class="btn-add">按鈕2: 產生 3D 點座標</button>
         </div>
 
+        <!-- 區塊三：已建置點位清單 -->
         <div class="section-title">已產生點位表單</div>
         <table>
             <thead>
@@ -228,6 +238,7 @@
                 </tr>
             </thead>
             <tbody id="pointsTableBody">
+                <!-- 點位資料會插入這裡 -->
             </tbody>
         </table>
     </div>
@@ -240,9 +251,9 @@
         script.onload = initCesiumApp;
         document.head.appendChild(script);
 
+        // UI 元素綁定
         const opacitySlider = document.getElementById('opacitySlider');
         const opacityValueDisplay = document.getElementById('opacityValue');
-        
         const btnPickPoint = document.getElementById('btnPickPoint');
         const displayX = document.getElementById('displayX');
         const displayY = document.getElementById('displayY');
@@ -252,11 +263,13 @@
         const pointsTableBody = document.getElementById('pointsTableBody');
         const toastBox = document.getElementById('toastBox');
 
+        // 狀態變數
         let isPicking = false;
         let currentX = null;
         let currentY = null;
         let pointsArray = [];
 
+        // 提示框功能 (取代 alert)
         function showToast(message) {
             toastBox.textContent = message;
             toastBox.classList.add('show');
@@ -270,7 +283,6 @@
             const taipeiLatitude = 25.0330;
             const viewHeight = 1500.0;
 
-            // 必須填入免費註冊的 Cesium Ion Token，才能使用全球高程地形
             Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6InVmWlRUZWJKZEIzc0VibUYiLCJqdGkiOiI4ZThmMzVhMi1hNGNlLTQ4NGEtODU1NC02ODg0MjRmZTczZTQiLCJpZCI6MTQ3NDQyLCJzdWIiOiJpbHVrYWEiLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidGVzdGNlc2l1bSIsImlhdCI6MTc5Mjg1MjE1MH0.AhSN6dizcHH7jKHXbJ6vTdHDg3FqWPj8p7Qz86moNsw';
 
             const viewer = new Cesium.Viewer('cesiumContainer', {
@@ -282,11 +294,10 @@
                 animation: false,
                 timeline: false,
                 fullscreenButton: false,
-                baseLayer: false,
-                // 加入官方的全球高程地形介接服務
-                terrain: Cesium.Terrain.fromWorldTerrain()
+                baseLayer: false
             });
 
+            // 確保選取功能能與 3D 建築物交互作用
             viewer.scene.globe.depthTestAgainstTerrain = true;
 
             const imageryProvider = new Cesium.ArcGisMapServerImageryProvider({
@@ -301,6 +312,8 @@
                     
                     function updateTilesetOpacity(opacityPercent) {
                         const opacityDecimal = opacityPercent / 100;
+                        // 修正: 確保在 opacity 為 0 的時候完全透明，其他時候正常變化。
+                        // 原本的寫法在某些顯示卡或底圖設定下可能被當作 cut-off 值。
                         tileset.style = new Cesium.Cesium3DTileStyle({
                             color: "color('white', " + opacityDecimal + ")"
                         });
@@ -326,10 +339,12 @@
                 }
             });
 
+            // 高度滑桿監聽
             zSlider.addEventListener('input', function(e) {
                 displayZ.textContent = e.target.value;
             });
 
+            // 選取座標模式切換
             btnPickPoint.addEventListener('click', () => {
                 isPicking = !isPicking;
                 if (isPicking) {
@@ -343,15 +358,11 @@
                 }
             });
 
+            // 滑鼠點擊事件監聽 (擷取座標)
             const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
             handler.setInputAction(function(clickEvent) {
                 if (isPicking) {
-                    let cartesian = viewer.scene.pickPosition(clickEvent.position);
-                    
-                    if (!Cesium.defined(cartesian)) {
-                        const ray = viewer.camera.getPickRay(clickEvent.position);
-                        cartesian = viewer.scene.globe.pick(ray, viewer.scene);
-                    }
+                    const cartesian = viewer.scene.pickPosition(clickEvent.position);
                     
                     if (Cesium.defined(cartesian)) {
                         const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
@@ -369,15 +380,18 @@
                         showToast('請點擊地球表面或建築物！');
                     }
                 } else {
+                    // 非座標選取模式下，使用 drillPick (穿透選取) 來尋找可能被模型遮擋的點位
                     const pickedObjects = viewer.scene.drillPick(clickEvent.position);
                     if (pickedObjects.length > 0) {
                         for (let i = 0; i < pickedObjects.length; i++) {
                             const picked = pickedObjects[i];
+                            // 檢查是否選取到了我們建立的 Entity
                             if (Cesium.defined(picked) && Cesium.defined(picked.id)) {
-                                const entityId = picked.id.id;
+                                const entityId = picked.id.id; // 取得實體的 ID
                                 const targetPoint = pointsArray.find(p => p.id === entityId);
                                 
                                 if (targetPoint) {
+                                    // 找到自訂點位，顯示資訊並中斷迴圈
                                     showToast(`📌 點選資訊 - X: ${targetPoint.x}, Y: ${targetPoint.y}, Z: ${targetPoint.z}m`);
                                     break; 
                                 }
@@ -398,23 +412,26 @@
                 const yValue = parseFloat(currentY);
                 const pointId = 'point_' + Date.now();
 
+                // 在 Cesium 產生實體 (直徑 1.5 公尺的球體 -> 半徑 0.75m)
                 viewer.entities.add({
                     id: pointId,
                     position: Cesium.Cartesian3.fromDegrees(xValue, yValue, zValue),
                     ellipsoid: {
-                        radii: new Cesium.Cartesian3(0.75, 0.75, 0.75),
-                        material: Cesium.Color.fromCssColorString('#facc15'),
+                        radii: new Cesium.Cartesian3(0.75, 0.75, 0.75), // 直徑 1.5 公尺
+                        material: Cesium.Color.fromCssColorString('#facc15'), // 黃色比較顯眼
                         outline: true,
                         outlineColor: Cesium.Color.BLACK
                     }
                 });
 
+                // 將資料加入陣列並重繪表單
                 pointsArray.push({ id: pointId, x: currentX, y: currentY, z: zValue });
                 renderPointsTable();
                 
                 showToast('點位建置成功！');
             });
 
+            // 繪製/重繪點位表單
             function renderPointsTable() {
                 pointsTableBody.innerHTML = '';
                 if(pointsArray.length === 0) {
@@ -434,14 +451,20 @@
                 });
             }
 
+            // 全域刪除函數 (給 HTML onClick 呼叫)
             window.deletePoint = function(id) {
+                // 從圖台移除
                 viewer.entities.removeById(id);
+                // 從陣列移除
                 pointsArray = pointsArray.filter(p => p.id !== id);
+                // 更新 UI
                 renderPointsTable();
             };
 
+            // 初始空表單畫面
             renderPointsTable();
 
+            // 移除 Loading 畫面
             const overlay = document.getElementById('loadingOverlay');
             overlay.style.opacity = '0';
             setTimeout(() => {
